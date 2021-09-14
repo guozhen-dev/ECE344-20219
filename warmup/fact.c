@@ -11,11 +11,8 @@ int str2int(char* str){
 }
 
 int getFactorial(int x){
-	int ans = 1; 
-	for (int i = 1 ; i <= x ; i++){
-		ans *= i;
-	}
-	return ans;
+	if (x == 1) return 1;
+	else return (x * getFactorial(x-1));
 }
 
 int main(int argc, char** argv)
