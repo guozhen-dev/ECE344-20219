@@ -38,12 +38,12 @@ void copyFile(char *src_file, char *dest_file) {
 
 void copyDir(char *src_dir, char *dest_dir) {
 
-    
+
 
     DIR *dirstream = opendir(src_dir);
-    struct stat* dirstat = malloc(sizeof(struct stat));
+    struct stat *dirstat = malloc(sizeof(struct stat));
     stat(src_dir, dirstat);
-    if(mkdir(dest_dir,0777)){
+    if(mkdir(dest_dir, 0777)) {
         syserror(mkdir, dest_dir);
     }
     if (!dirstream) {
@@ -56,12 +56,12 @@ void copyDir(char *src_dir, char *dest_dir) {
                     continue;
                 // printf("Length: %ld\n", sizeof(char) * (10 + strlen(src_dir) + strlen(curfile -> d_name)));
                 char *new_src = malloc(sizeof(char) * (10 + strlen(src_dir) + strlen(curfile -> d_name)));
-                memset(new_src, 0 , sizeof(char) * (10 + strlen(src_dir) + strlen(curfile -> d_name)));
+                memset(new_src, 0, sizeof(char) * (10 + strlen(src_dir) + strlen(curfile -> d_name)));
                 strcat(new_src, src_dir);
                 strcat(new_src, "/");
                 strcat(new_src, curfile -> d_name);
                 char *new_dest = malloc(sizeof(char) * (10 + strlen(dest_dir) + strlen(curfile -> d_name)));
-                memset(new_dest, 0 , sizeof(char) * (10 + strlen(dest_dir) + strlen(curfile -> d_name)));
+                memset(new_dest, 0, sizeof(char) * (10 + strlen(dest_dir) + strlen(curfile -> d_name)));
 
                 strcat(new_dest, dest_dir);
                 strcat(new_dest, "/");
@@ -72,12 +72,12 @@ void copyDir(char *src_dir, char *dest_dir) {
                 free(new_src);
             } else if (curfile -> d_type == DT_REG) {
                 char *new_src = malloc(sizeof(char) * (10 + strlen(src_dir) + strlen(curfile -> d_name)));
-                memset(new_src, 0 , sizeof(char) * (10 + strlen(src_dir) + strlen(curfile -> d_name)));
+                memset(new_src, 0, sizeof(char) * (10 + strlen(src_dir) + strlen(curfile -> d_name)));
                 strcat(new_src, src_dir);
                 strcat(new_src, "/");
                 strcat(new_src, curfile -> d_name);
                 char *new_dest = malloc(sizeof(char) * (10 + strlen(dest_dir) + strlen(curfile -> d_name)));
-                memset(new_dest, 0 , sizeof(char) * (10 + strlen(dest_dir) + strlen(curfile -> d_name)));
+                memset(new_dest, 0, sizeof(char) * (10 + strlen(dest_dir) + strlen(curfile -> d_name)));
                 strcat(new_dest, dest_dir);
                 strcat(new_dest, "/");
                 strcat(new_dest, curfile -> d_name);
@@ -91,6 +91,7 @@ void copyDir(char *src_dir, char *dest_dir) {
     }
 
     chmod (dest_dir, dirstat -> st_mode);
+    free(dirstat);
     return;
 }
 
