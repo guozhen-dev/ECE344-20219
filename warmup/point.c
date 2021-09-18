@@ -6,8 +6,8 @@
 void
 point_translate(struct point *p, double x, double y)
 {
-	p->x = x;
-	p->y = y;
+	p->x += x;
+	p->y += y;
 }
 
 double
