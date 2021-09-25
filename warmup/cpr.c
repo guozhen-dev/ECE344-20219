@@ -9,7 +9,7 @@
 #include <fcntl.h>
 
 
-#define DEBUG
+// #define DEBUG
 /* make sure to use syserror() when a system call fails. see common.h */
 
 void
@@ -20,15 +20,23 @@ usage() {
 
 void copyFile(char *src_file, char *dest_file) {
     int src_fd = open(src_file, O_RDONLY);
+    if (src_fd < 0){
+        syserror(open, src_file);
+    }
     struct stat *fileStat = malloc(sizeof(struct stat));
     if (stat(src_file, fileStat)) {
-        printf("Read file info: %s error", src_file);
+        syserror(stat, src_file);
     }
     printf("File size: %ld\n", fileStat -> st_size);
     char *buffer = malloc(fileStat -> st_size);
     read(src_fd, buffer, fileStat -> st_size);
     int dest_fd = creat(dest_file, fileStat->st_mode);
-    write(dest_fd, buffer, fileStat -> st_size);
+    if (dest_fd  < 0 ){
+        syserror(creat, dest_file);
+    }
+    if (write(dest_fd, buffer, fileStat -> st_size) < 0){
+        syserror(write, dest_file);
+    } 
     close(src_fd);
     close(dest_fd);
     free(buffer);
@@ -41,8 +49,13 @@ void copyDir(char *src_dir, char *dest_dir) {
 
 
     DIR *dirstream = opendir(src_dir);
+    if(!dirstream){
+        syserror(opendir, src_dir);
+    }
     struct stat *dirstat = malloc(sizeof(struct stat));
-    stat(src_dir, dirstat);
+    if (stat(src_dir, dirstat)){
+        syserror(stat, src_dir);
+    }
     if(mkdir(dest_dir, 0777)) {
         syserror(mkdir, dest_dir);
     }
@@ -105,10 +118,8 @@ int main(int argc, char *argv[]) {
     if (src[strlen(src) - 1 ] == '/') src[strlen(src) - 1 ] = '\x0';
     if (dest[strlen(dest) - 1 ] == '/') dest[strlen(dest) - 1 ] = '\x0';
     DIR *source_dir = opendir(src);
-    // DIR* dest_dir = opendir(argv[2]]);
     if (!source_dir) {
-        printf("Open source dir failed\n");
-        return -1;
+        syserror(opendir, src);
     } else {
         copyDir(src, dest);
     }

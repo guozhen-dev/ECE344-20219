@@ -12,7 +12,6 @@
 
 //Duplcate the Hash algo in Java
 typedef struct node {
-    // char* string;
     long startPtr;
     long endPtr;
     struct node *next;
@@ -25,9 +24,7 @@ struct wc {
     char *word_array;
     long size;
 };
-bool is_letter(char x) {
-    return (!isspace(x));
-}
+
 bool compair_str(char *word_array, long start1, long end1, long start2, long end2) {
 #ifdef DEBUG
     printf("%ld,%ld;%ld,%ld\n", start1,  end1,  start2,  end2);
@@ -73,7 +70,7 @@ wc_init(char *word_array, long size) {
     memset(wc->hashtable, 0, sizeof(Node *) * MAX);
     wc->word_array = malloc(sizeof(char) * (size + 1));
     memcpy(wc->word_array, word_array, sizeof(char) * (size + 1));
-    long key = 0;
+    unsigned long key = 0;
     long last_end = 0;
 
 #ifdef DEBUG
@@ -91,7 +88,7 @@ wc_init(char *word_array, long size) {
             printf("\nCurrent key: %ld \n", key % MAX);
 #endif
 
-            Node *startingNode = wc->hashtable[key % MAX];
+            Node *startingNode = wc->hashtable[key];
 
 #ifdef DEBUG
             printf("Current starting ptr: %p \n", startingNode);
@@ -125,7 +122,7 @@ wc_init(char *word_array, long size) {
                     //Node * curNode = startingNode -> next;
                     startingNode -> next -> startPtr = last_end ;
                     startingNode -> next -> endPtr = cur;
-                    startingNode = startingNode -> next;
+                    // startingNode = startingNode -> next;
                 }
             } else {
                 startingNode = malloc(sizeof(Node));
@@ -145,7 +142,7 @@ wc_init(char *word_array, long size) {
             }
             last_end = cur + 1;
         } else {
-            key = abs(key * 131 + word_array[cur]);
+            key = (key << 5) + key + word_array[cur]; // http://www.cse.yorku.ca/~oz/hash.html
             key %= MAX;
         }
 
