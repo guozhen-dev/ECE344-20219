@@ -11,7 +11,8 @@ struct wait_queue {
 
 /* This is the thread control block */
 struct thread {
-	/* ... Fill this in ... */
+	Tid thread_id; 
+	
 };
 
 void
