@@ -12,6 +12,7 @@ typedef int Tid;
  * thread_create. Negative Tid values are used for error codes or control codes.
  */
 
+
 enum { THREAD_ANY = -1,
 	THREAD_SELF = -2,
 	THREAD_INVALID = -3,
