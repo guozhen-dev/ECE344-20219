@@ -6,8 +6,9 @@
 #include "interrupt.h"
 #include <stdarg.h>
 #include "stdio.h"
+#include <stdbool.h>
 
-#define DBG_LVL 30
+#define DBG_LVL 50
 /* This is the wait queue structure */
 struct wait_queue {
     /* ... Fill this in Lab 3 ... */
@@ -56,6 +57,16 @@ struct queueNode *rq; //The ready queue
 
 //Here are some wrapper functions
 
+bool islastThread(){
+    for (int i = 0 ; i < THREAD_MAX_THREADS ; i++){
+        if (i != thread_id()){
+            if (ThreadList[i].state == READY){
+                return false;
+            }
+        }
+    }
+    return true;
+}
 void enqueue_ready(struct thread *th) {
     struct queueNode *cur = rq;
     if (cur) {
@@ -84,6 +95,7 @@ struct thread *dequeue_ready() {
     rq = rq -> next;
     struct thread *ret = head->thread;
     free(head);
+    head = NULL; 
     return ret;
 }
 
@@ -98,6 +110,7 @@ struct thread *dequeue_ready_by_id(Tid tid) {
         ret = rq-> thread;
         rq = rq->next ;
         free(oldpos);
+        oldpos = NULL; 
         return ret;
     }
     while(cur) {
@@ -136,10 +149,11 @@ void print_ready_queue() {
 
 void thread_stub (void *func (void *), void *arg) {
     dprint(1, "Stub is Running with func %p, arg %p", func, arg);
-    if (ThreadList[thread_id()].state == KILLED) {
-        thread_exit();
-    }
+    // if (ThreadList[thread_id()].state == KILLED) {
+    //     thread_exit();
+    // }
     func(arg);
+    dprint(25, "Calling EXIT from %d", thread_id());
     thread_exit();
 }
 
@@ -176,8 +190,9 @@ thread_create(void (*fn) (void *), void *parg) {
         if (ThreadList[i].state == NOT_EXIST ) {
             new = i;
             break;
-        }else if(ThreadList[i].state == KILLED || ThreadList[i].state == EXITED){
+        }else if(ThreadList[i].stack && (ThreadList[i].state == KILLED || ThreadList[i].state == EXITED)){
             free(ThreadList[i].stack);
+            ThreadList[i].stack = NULL; 
             ThreadList[i].state = NOT_EXIST; 
             i--;
         }
@@ -215,47 +230,15 @@ thread_create(void (*fn) (void *), void *parg) {
 
 Tid
 thread_yield(Tid want_tid) {
+    for (int i = 0 ; i < THREAD_MAX_THREADS  ; i++){
+        if (ThreadList[i].stack && ThreadList[i].state==EXITED && i != thread_id()){
+                dprint(41,"Thread is exited, earsing %d", i);
+                free(ThreadList[i].stack);
+                ThreadList[i].stack = NULL; 
+                ThreadList[i].state = NOT_EXIST;
+        }
+    }
 
-    dprint(13, "Current id: %d, want_tid: %d", thread_id(),  want_tid);
-
-    //    print_ready_queue();
-
-    // if (want_tid == THREAD_SELF){
-    //  want_tid = thread_id();
-    // }
-    // if (want_tid == THREAD_ANY){
-    //  if (!rq){
-    //      return THREAD_NONE;
-    //  }else{
-    //      want_tid = dequeue_ready()->thr_id;
-    //  }
-    // }
-
-    //    if (want_tid < 0 || want_tid > THREAD_MAX_THREADS -1){
-    //        return THREAD_INVALID;
-    //    }
-    // if (ThreadList[want_tid].state == NOT_EXIST || ThreadList[want_tid].state == EXITED || ThreadList[want_tid].state == KILLED){
-    //  return THREAD_INVALID;
-    // }
-    // //Save the context to the TCB
-    //    volatile int restore_time = 0;
-    //    dprint(1, "Yield to: %d", want_tid);
-    //    assert(ThreadList[thread_id()].state==RUNNING);
-    //    ThreadList[thread_id()].state = READY;
-    //    ThreadList[want_tid].state = RUNNING;
-
-    //    if(thread_id() != want_tid)
-    //        enqueue_ready(&ThreadList[thread_id()]);
-    //    getcontext(&ThreadList[thread_id()].ctx);
-    //    restore_time ++;
-
-    //    //Write the context back to TCB
-    //    if (restore_time < 2)
-    //        setcontext(&ThreadList[want_tid].ctx);
-    //    currentThread = want_tid;
-
-    //    dprint(1,"After Yeild: %d", thread_id());
-    //    return want_tid;
     if(want_tid == THREAD_SELF) {
         want_tid = thread_id();
     } else if (want_tid == THREAD_ANY) {
@@ -264,20 +247,23 @@ thread_yield(Tid want_tid) {
         } else {
             want_tid = peek_ready()->thr_id;
             while(ThreadList[want_tid].state != READY){
-                dequeue_ready_by_id(want_tid);
                 want_tid = peek_ready() -> thr_id; 
             }
         }
     } else if (want_tid < 0 || want_tid > THREAD_MAX_THREADS || ThreadList[want_tid].state == NOT_EXIST || ThreadList[want_tid].state == EXITED) {
         return THREAD_INVALID;
     }
+
+    dprint(31, "Current id: %d, want_tid: %d", thread_id(),  want_tid);
+
+
     if (ThreadList[thread_id()].state == RUNNING){
         ThreadList[thread_id()].state = READY;
     }
     ThreadList[want_tid].state = RUNNING;
     // print_ready_queue();
     if( ThreadList[thread_id()].state == READY){
-        dprint(1, "ENQ %d", thread_id());
+        dprint(31, "ENQ %d", thread_id());
         enqueue_ready(&ThreadList[thread_id()]);
     }
     // print_ready_queue();
@@ -286,26 +272,25 @@ thread_yield(Tid want_tid) {
     dprint(1, "Queue Maintance success");
     // print_ready_queue();
     volatile int restore_cnt = 0;
-    Tid prev = currentThread;
+    // volatile int prev_tid = thread_id(); 
     getcontext(&ThreadList[thread_id()].ctx);
     restore_cnt ++;
     if (restore_cnt == 1) {
         currentThread = want_tid;
         setcontext(&ThreadList[want_tid].ctx);
-    }else{
-        if (ThreadList[prev].state == EXITED){
-            free(ThreadList[prev].stack);
-        }
     }
+    
     return want_tid;
 }
 
 void
 thread_exit() {
     print_ready_queue(); 
-    dprint(12,"Exiting %d", thread_id());
+    dprint(25,"Exiting %d", thread_id());
     ThreadList[thread_id()].state = EXITED;
-    thread_yield(THREAD_ANY);
+    if(thread_yield(THREAD_ANY) == THREAD_NONE){
+        exit(0);
+    }
 }
 
 Tid
@@ -317,13 +302,15 @@ thread_kill(Tid tid) {
     } else if (tid < 0 || tid > THREAD_MAX_THREADS || ThreadList[tid].state != READY) {
         dprint(1, "Not a valid thread!");
         return THREAD_INVALID;
-    } else {
-        dequeue_ready_by_id(tid);
-        ThreadList[tid].state = NOT_EXIST;
-        free(ThreadList[tid].stack);
-        return tid;
     }
-    return THREAD_FAILED;
+
+    dequeue_ready_by_id(tid);
+    ThreadList[tid].state = NOT_EXIST;
+    free(ThreadList[tid].stack);
+    ThreadList[tid].stack = NULL; 
+    
+    return tid;
+
 }
 
 
