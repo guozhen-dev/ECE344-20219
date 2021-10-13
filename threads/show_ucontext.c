@@ -131,7 +131,7 @@ main(int argc, char **argv) {
      * field is used to store an alternate stack for use during signal
      * handling, and is NOT the stack of the running thread. */
     printf("value of uc_stack.ss_sp = 0x%lx\n",
-           (unsigned long) -1);
+           (unsigned long) mycontext.uc_stack.ss_sp);
 
     /* Don't move on to the next part of the lab until you know how to
      * change the stack in a context when you manipulate a context to create

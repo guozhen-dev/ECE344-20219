@@ -211,6 +211,7 @@ thread_create(void (*fn) (void *), void *parg) {
     if (ThreadList[new].stack == NULL) return THREAD_NOMEMORY;
 
     //Now fill in the registers
+    ThreadList[new].ctx.uc_stack.ss_sp = (void*) ((long long int)ThreadList[new].stack - (long long int)ThreadList[new].stack % 16);
     ThreadList[new].ctx.uc_mcontext.gregs[REG_RIP] = (long long int)&thread_stub;
     ThreadList[new].ctx.uc_mcontext.gregs[REG_RBP] = (long long int)ThreadList[new].stack - (long long int)ThreadList[new].stack % 16;
     ThreadList[new].ctx.uc_mcontext.gregs[REG_RSP] = (long long int)ThreadList[new].ctx.uc_mcontext.gregs[REG_RBP] + THREAD_MIN_STACK - 8;
