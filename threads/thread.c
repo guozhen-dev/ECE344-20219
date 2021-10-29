@@ -584,6 +584,9 @@ lock_acquire(struct lock *lock) {
     int enable = interrupts_set(0); 
     while (!lock->available){
         thread_sleep(lock -> wq);
+        // Question: Why we cannot use thready yeild here? 
+        // If use sleep as descirbed in handout, it works fine
+        // If use thread_yield this thing works in GDB, while NOT working in barely. :(
     }
     lock -> available  = 0;
     lock -> holder = thread_id(); 
