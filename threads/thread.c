@@ -8,9 +8,12 @@
 #include "stdio.h"
 #include <stdbool.h>
 
-#define DBG_LVL 104 //Debug level set to > 100 for debug purpose of lab 3 
-// DBGLVL 101 lab3 preemetive 
-// DBGLVL 102 lab3 wakeup 
+#define DBG_LVL 108 //Debug level set to > 100 for debug purpose of lab 3 
+// DBGLVL 101 lab3 preemetive
+// DBGLVL 102 lab3 wakeup
+// DBGLVL 104 lab3 wait
+// DBGLVL 106 lab3 wait kill
+//
 
 
 
@@ -38,6 +41,11 @@ enum {
 
 };
 
+/* This is the wait queue structure */
+struct wait_queue {
+    //Reuse the same thing in the ready queue
+    struct queueNode *wq;
+};
 
 /* This is the thread control block */
 struct thread {
@@ -45,6 +53,9 @@ struct thread {
     ucontext_t ctx;
     int state;
     char *stack;
+    //This is added in lab3, a wait queue connecting to this thread
+    struct wait_queue *wq;
+    Tid parent_id;
 };
 
 struct thread ThreadList[THREAD_MAX_THREADS];
@@ -57,17 +68,13 @@ struct queueNode {
 struct queueNode *rq; //The ready queue
 
 
-/* This is the wait queue structure */
-struct wait_queue {
-    //Reuse the same thing in the ready queue 
-    struct queueNode *wq; 
-};
+
 //Here are some wrapper functions
 
-bool islastThread(){
-    for (int i = 0 ; i < THREAD_MAX_THREADS ; i++){
-        if (i != thread_id()){
-            if (ThreadList[i].state == READY){
+bool islastThread() {
+    for (int i = 0 ; i < THREAD_MAX_THREADS ; i++) {
+        if (i != thread_id()) {
+            if (ThreadList[i].state == READY) {
                 return false;
             }
         }
@@ -102,7 +109,7 @@ struct thread *dequeue_ready() {
     rq = rq -> next;
     struct thread *ret = head->thread;
     free(head);
-    head = NULL; 
+    head = NULL;
     return ret;
 }
 
@@ -113,11 +120,11 @@ struct thread *dequeue_ready_by_id(Tid tid) {
 
     if (!rq) return NULL;
     if (rq -> thread -> thr_id == tid) {
-        void * oldpos = rq; 
+        void *oldpos = rq;
         ret = rq-> thread;
         rq = rq->next ;
         free(oldpos);
-        oldpos = NULL; 
+        oldpos = NULL;
         return ret;
     }
     while(cur) {
@@ -139,8 +146,8 @@ struct thread *peek_ready() {
 
 
 void print_ready_queue() {
-    int enable = interrupts_set(0); 
-    // if (DBG_LVL > 20 )return ;
+    int enable = interrupts_set(0);
+    if (DBG_LVL > 20 )return ;
     struct queueNode *head = rq;
     printf("\033[34m[Queue]: ");
 
@@ -173,6 +180,7 @@ thread_init(void) {
     int enable = interrupts_set(0);
     currentThread = 0;
     ThreadList[currentThread].state = RUNNING;
+    ThreadList[currentThread].wq = malloc(sizeof(struct wait_queue));
     rq = NULL;
     // rq = malloc(sizeof(struct queueNode));
     // rq -> prev = NULL;
@@ -198,7 +206,7 @@ Tid
 thread_create(void (*fn) (void *), void *parg) {
     int enable = interrupts_set(0);
     enable = 1;
-    dprint(101, "Get interrupt in create status now is %d", enable); 
+    dprint(101, "Get interrupt in create status now is %d", enable);
 
     //Now we need to find an available thread number
     Tid new = THREAD_FAILED;
@@ -206,10 +214,10 @@ thread_create(void (*fn) (void *), void *parg) {
         if (ThreadList[i].state == NOT_EXIST ) {
             new = i;
             break;
-        }else if(ThreadList[i].stack && (ThreadList[i].state == KILLED || ThreadList[i].state == EXITED)){
+        } else if(ThreadList[i].stack && (ThreadList[i].state == KILLED || ThreadList[i].state == EXITED)) {
             free(ThreadList[i].stack);
-            ThreadList[i].stack = NULL; 
-            ThreadList[i].state = NOT_EXIST; 
+            ThreadList[i].stack = NULL;
+            ThreadList[i].state = NOT_EXIST;
             i--;
         }
     }
@@ -224,6 +232,11 @@ thread_create(void (*fn) (void *), void *parg) {
 
     //Allocate a new stack
     ThreadList[new].stack = malloc(THREAD_MIN_STACK);
+
+    //Allocate a wq for lab3
+    ThreadList[new].wq = malloc(sizeof(struct wait_queue));
+
+
     //Check if success
     if (ThreadList[new].stack == NULL) {
         interrupts_set(enable);
@@ -239,6 +252,7 @@ thread_create(void (*fn) (void *), void *parg) {
 
 
     ThreadList[new].state = READY;
+    ThreadList[new].parent_id = THREAD_INVALID;
     dprint(1, "Stack: %p", ThreadList[new].stack);
     dprint(1, "%%rbp: %p", ThreadList[new].ctx.uc_mcontext.gregs[REG_RBP]);
     dprint(1, "Get all the parameters Filled!");
@@ -251,14 +265,14 @@ thread_create(void (*fn) (void *), void *parg) {
 
 Tid
 thread_yield(Tid want_tid) {
-    dprint(102, "Get interrupt in yield status now is %d, from Thread: %d", interrupts_enabled(), thread_id()); 
+    dprint(102, "Get interrupt in yield status now is %d, from Thread: %d", interrupts_enabled(), thread_id());
     int enable = interrupts_set(0);
-    for (int i = 0 ; i < THREAD_MAX_THREADS  ; i++){
-        if (ThreadList[i].stack && ThreadList[i].state==EXITED && i != thread_id()){
-                dprint(41,"Thread is exited, earsing %d", i);
-                free(ThreadList[i].stack);
-                ThreadList[i].stack = NULL; 
-                ThreadList[i].state = NOT_EXIST;
+    for (int i = 0 ; i < THREAD_MAX_THREADS  ; i++) {
+        if (ThreadList[i].stack && ThreadList[i].state == EXITED && i != thread_id()) {
+            dprint(41, "Thread is exited, earsing %d", i);
+            free(ThreadList[i].stack);
+            ThreadList[i].stack = NULL;
+            ThreadList[i].state = NOT_EXIST;
         }
     }
 
@@ -270,10 +284,10 @@ thread_yield(Tid want_tid) {
             return THREAD_NONE;
         } else {
             want_tid = peek_ready()->thr_id;
-            while(ThreadList[want_tid].state != READY){
-                dprint(102,"Throw away thread %d", want_tid);
+            while(ThreadList[want_tid].state != READY) {
+                dprint(107, "Throw away thread %d", want_tid);
                 dequeue_ready();
-                want_tid = peek_ready() -> thr_id; 
+                want_tid = peek_ready() -> thr_id;
             }
         }
     } else if (want_tid < 0 || want_tid > THREAD_MAX_THREADS || ThreadList[want_tid].state == NOT_EXIST || ThreadList[want_tid].state == EXITED) {
@@ -281,15 +295,15 @@ thread_yield(Tid want_tid) {
         return THREAD_INVALID;
     }
 
-    dprint(103, "Current id: %d, state: %d, want_tid: %d", thread_id(), ThreadList[thread_id()].state,  want_tid);
+    dprint(107, "Current id: %d, state: %d, want_tid: %d, state %d", thread_id(), ThreadList[thread_id()].state,  want_tid, ThreadList[want_tid].state);
 
 
-    if (ThreadList[thread_id()].state == RUNNING){
+    if (ThreadList[thread_id()].state == RUNNING) {
         ThreadList[thread_id()].state = READY;
     }
     ThreadList[want_tid].state = RUNNING;
-    // print_ready_queue();
-    if( ThreadList[thread_id()].state == READY){
+    print_ready_queue();
+    if( ThreadList[thread_id()].state == READY) {
         dprint(103, "ENQ %d, state is %d", thread_id(), ThreadList[thread_id()].state);
         enqueue_ready(&ThreadList[thread_id()]);
     }
@@ -299,7 +313,7 @@ thread_yield(Tid want_tid) {
     dprint(1, "Queue Maintance success");
     // print_ready_queue();
     volatile int restore_cnt = 0;
-    // volatile int prev_tid = thread_id(); 
+    // volatile int prev_tid = thread_id();
     getcontext(&ThreadList[thread_id()].ctx);
     dprint(101, "Now the enable is %d", enable);
     restore_cnt ++;
@@ -315,34 +329,50 @@ thread_yield(Tid want_tid) {
 void
 thread_exit() {
     int enable = interrupts_set(0);
-    // print_ready_queue(); 
-    dprint(25,"Exiting %d", thread_id());
+    // print_ready_queue();
+    dprint(104, "Exiting %d", thread_id());
     ThreadList[thread_id()].state = EXITED;
-    if(thread_yield(THREAD_ANY) == THREAD_NONE){
+    if (ThreadList[thread_id()].wq ->wq)
+        dprint(104, "Wake up %d", ThreadList[thread_id()].wq ->wq -> thread -> thr_id);
+    thread_wakeup(ThreadList[thread_id()].wq, 1);
+    if(thread_yield(THREAD_ANY) == THREAD_NONE) {
         exit(0);
     }
     interrupts_set(enable);
 
 }
+struct thread *dequeue_wait_by_id(struct wait_queue *wq, Tid tid) ;
 
 Tid
 thread_kill(Tid tid) {
     int enable = interrupts_set(0);
-    dprint(22, "killing %d from %d", tid, thread_id());
+    dprint(107, "killing %d from %d, parent is : %d", tid, thread_id(), ThreadList[thread_id()].parent_id);
     if(tid == thread_id()) {
         dprint(1, "Cannot Kill my self ^_^!");
         interrupts_set(enable);
         return THREAD_INVALID;
-    } else if (tid < 0 || tid > THREAD_MAX_THREADS || ThreadList[tid].state != READY) {
+    } else if (tid == ThreadList[thread_id()].parent_id) {
+        dprint(106, "kill parent");
+        thread_wakeup(ThreadList[tid].wq, 1);
+        dequeue_wait_by_id(ThreadList[thread_id()].wq, tid);
+        ThreadList[tid].state = NOT_EXIST;
+        ThreadList[tid].parent_id = THREAD_INVALID;
+        free(ThreadList[tid].stack);
+        ThreadList[tid].stack = NULL;
+        return tid;
+
+    } else if (tid < 0 || tid > THREAD_MAX_THREADS || (ThreadList[tid].state != READY && ThreadList[tid].state != SLEEPING)) {
         dprint(1, "Not a valid thread!");
         interrupts_set(enable);
         return THREAD_INVALID;
     }
 
     dequeue_ready_by_id(tid);
+    thread_wakeup(ThreadList[tid].wq, 1);
     ThreadList[tid].state = NOT_EXIST;
+    ThreadList[tid].parent_id = THREAD_INVALID;
     free(ThreadList[tid].stack);
-    ThreadList[tid].stack = NULL; 
+    ThreadList[tid].stack = NULL;
     interrupts_set(enable);
     return tid;
 
@@ -358,7 +388,7 @@ thread_kill(Tid tid) {
 
 
 
-void enqueue_waiting(struct wait_queue * wq,  struct thread *th) {
+void enqueue_waiting(struct wait_queue *wq,  struct thread *th) {
     struct queueNode *cur = wq -> wq;
     if (cur) {
         while(cur -> next) {
@@ -381,27 +411,27 @@ void enqueue_waiting(struct wait_queue * wq,  struct thread *th) {
 
 }
 
-struct thread *dequeue_wait(struct wait_queue * wq) {
+struct thread *dequeue_wait(struct wait_queue *wq) {
     struct queueNode *head = wq->wq;
     wq -> wq = wq -> wq -> next;
     struct thread *ret = head->thread;
     free(head);
-    head = NULL; 
+    head = NULL;
     return ret;
 }
 
-struct thread *dequeue_wait_by_id(struct wait_queue * wq, Tid tid) {
+struct thread *dequeue_wait_by_id(struct wait_queue *wq, Tid tid) {
     struct queueNode *cur = wq->wq;
     struct queueNode *prev = NULL;
     struct thread *ret = NULL;
 
     if (!wq -> wq) return NULL;
     if (wq -> wq -> thread -> thr_id == tid) {
-        void * oldpos = wq -> wq; 
+        void *oldpos = wq -> wq;
         ret = wq -> wq-> thread;
         wq -> wq = wq -> wq->next ;
         free(oldpos);
-        oldpos = NULL; 
+        oldpos = NULL;
         return ret;
     }
     while(cur) {
@@ -417,13 +447,13 @@ struct thread *dequeue_wait_by_id(struct wait_queue * wq, Tid tid) {
 
 }
 
-struct thread *peek_wait(struct wait_queue * wq ) {
+struct thread *peek_wait(struct wait_queue *wq ) {
     return wq -> wq -> thread;
 }
 
 
-void print_wait_queue(struct wait_queue * wq) {
-    int enable = interrupts_set(0); 
+void print_wait_queue(struct wait_queue *wq) {
+    int enable = interrupts_set(0);
     struct queueNode *head = wq -> wq;
     printf("\033[34m[Waiting Queue]: ");
 
@@ -450,29 +480,29 @@ wait_queue_create() {
 }
 
 void
-wait_queue_destroy(struct wait_queue *wq) { // When call this we have to ensure that there is no thread in the queue 
-    int enable = interrupts_set(0); 
-    if(wq -> wq != NULL){
-        assert(0); 
+wait_queue_destroy(struct wait_queue *wq) { // When call this we have to ensure that there is no thread in the queue
+    int enable = interrupts_set(0);
+    if(wq -> wq != NULL) {
+        assert(0);
     }
     free(wq);
-    wq = NULL; 
+    wq = NULL;
     interrupts_set(enable);
-    return; 
+    return;
 }
 
 Tid
 thread_sleep(struct wait_queue *queue) {
-    int enable = interrupts_set(0); 
-    dprint(102, "Thread id %d want to sleep in to queue %p", thread_id(), queue);
-    if (!queue) return THREAD_INVALID; 
+    int enable = interrupts_set(0);
+    dprint(104, "Thread id %d want to sleep in to queue %p", thread_id(), queue);
+    if (!queue) return THREAD_INVALID;
     if (!rq) return THREAD_NONE;
     ThreadList[thread_id()].state = SLEEPING;
     enqueue_waiting(queue, &ThreadList[thread_id()]);
     while(dequeue_ready_by_id(thread_id()));
-    dprint(101, "ready to yeild, id is %d, state is %d", thread_id(), ThreadList[thread_id()].state);
-    interrupts_set(enable); 
-    return thread_yield(THREAD_ANY) ; 
+    // dprint(104, "ready to yeild, id is %d, state is %d", thread_id(), ThreadList[thread_id()].state);
+    interrupts_set(enable);
+    return thread_yield(THREAD_ANY) ;
 }
 
 /* when the 'all' parameter is 1, wakeup all threads waiting in the queue.
@@ -480,21 +510,25 @@ thread_sleep(struct wait_queue *queue) {
 int
 thread_wakeup(struct wait_queue *queue, int all) {
     int enable = interrupts_set(0);
-    int ret = 0; 
-    if (!queue || !queue -> wq ) {dprint(101,"Where is my queue?"); ret = 0;}
-    else if(all){
-        while(queue->wq != NULL){
-            struct thread * item = dequeue_wait(queue);
-            ThreadList[item->thr_id].state = READY; 
-            enqueue_ready(item);
-            ret ++; 
+    int ret = 0;
+    if (!queue || !queue -> wq ) {
+        dprint(107, "Where is my queue?");
+        ret = 0;
+    } else if(all) {
+        while(queue->wq != NULL) {
+            struct thread *item = dequeue_wait(queue);
+            if (ThreadList[item->thr_id].state == SLEEPING) {
+                ThreadList[item->thr_id].state = READY;
+                enqueue_ready(item);
+                ret ++;
+            }
         }
-    }else{
+    } else {
         if (queue->wq == NULL) return 0;
-        struct thread * item = dequeue_wait(queue);
-        ThreadList[item->thr_id].state = READY; 
+        struct thread *item = dequeue_wait(queue);
+        ThreadList[item->thr_id].state = READY;
         enqueue_ready(item);
-        ret = 1; 
+        ret = 1;
     }
     interrupts_set(enable);
     return ret;
@@ -503,8 +537,17 @@ thread_wakeup(struct wait_queue *queue, int all) {
 /* suspend current thread until Thread tid exits */
 Tid
 thread_wait(Tid tid) {
-    TBD();
-    return 0;
+    // int enable = interrupts_set(0);
+    if (tid < 0 || tid == thread_id() || (ThreadList[tid].state != READY && ThreadList[tid].state != SLEEPING)) {
+        dprint(105, "FAIL!!, target state %d", ThreadList[tid].state);
+        return THREAD_INVALID;
+    }
+    dprint(106, "Thread %d wait thread %d, thread: %dshould be stopped", thread_id(), tid, thread_id());
+    // interrupts_set(enable);
+
+    ThreadList[tid].parent_id = thread_id();
+    thread_sleep(ThreadList[tid].wq);
+    return tid;
 }
 
 struct lock {
