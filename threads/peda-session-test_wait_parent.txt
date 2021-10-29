@@ -1,4 +1,0 @@
-break main
-break /nfs/ug/homes-3/d/dingguoz/ece344/threads/test_thread.c:661
-watch ThreadList[2].state
-
