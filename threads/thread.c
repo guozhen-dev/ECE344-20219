@@ -551,7 +551,7 @@ thread_wait(Tid tid) {
 }
 
 struct lock {
-    /* ... Fill this in ... */
+    int available; 
 };
 
 struct lock *
@@ -561,32 +561,35 @@ lock_create() {
     lock = malloc(sizeof(struct lock));
     assert(lock);
 
-    TBD();
+    lock->available = 1;
 
     return lock;
 }
 
 void
 lock_destroy(struct lock *lock) {
+
     assert(lock != NULL);
-
-    TBD();
-
     free(lock);
 }
 
 void
 lock_acquire(struct lock *lock) {
     assert(lock != NULL);
-
-    TBD();
+    int enable = interrupts_set(0); 
+    while (!lock->available){
+        thread_yield(THREAD_ANY);
+    }
+    lock -> available  = 0;
+    interrupts_set(enable);
 }
 
 void
 lock_release(struct lock *lock) {
     assert(lock != NULL);
-
-    TBD();
+    int enable = interrupts_set(0);
+    lock->available = 1; 
+    interrupts_set(enable);
 }
 
 struct cv {
