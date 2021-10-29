@@ -8,7 +8,7 @@
 #include "stdio.h"
 #include <stdbool.h>
 
-#define DBG_LVL 50
+#define DBG_LVL 100 //Debug level set to > 100 for debug purpose of lab 3 
 /* This is the wait queue structure */
 struct wait_queue {
     /* ... Fill this in Lab 3 ... */
